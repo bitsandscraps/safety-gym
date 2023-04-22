@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "safety_gym"
 requires-python = ">=3.6"
@@ -11,4 +15,8 @@ dependencies = [
 version = "0.0.1"
 
 [tool.setuptools.packages.find]
-include = ["safety_gym", "safety_gym.*"]
+exclude = ["*.test*"]
+namespaces = false
+
+[tool.setuptools.package-data]
+safety_gym = ["xmls/*.xml"]
