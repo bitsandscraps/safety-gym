@@ -6,8 +6,9 @@ import numpy as np
 from copy import deepcopy
 from collections import OrderedDict
 from mujoco_py import const, load_model_from_path, load_model_from_xml, MjSim, MjViewer, MjRenderContextOffscreen
-from typing import Optional
+
 import safety_gym
+import sys
 
 '''
 Tools that allow the Safety Gym Engine to interface to MuJoCo.
@@ -60,20 +61,19 @@ class World:
         'objects': {},  # map from name -> object dict
         # Geoms -- similar to objects, but they are immovable and fixed in the scene.
         'geoms': {},  # map from name -> geom dict
-        # Mockups -- mockup objects which are used to control other objects
-        'mockups': {},
+        # Mocaps -- mocap objects which are used to control other objects
+        'mocaps': {},
 
         # Determine whether we create render contexts
         'observe_vision': False,
     }
 
-    def __init__(self, config={}, render_mode: Optional[str] = None, render_context=None):
+    def __init__(self, config={}, render_context=None):
         ''' config - JSON string or dict of configuration.  See self.parse() '''
         self.parse(config)  # Parse configuration
         self.first_reset = True
         self.viewer = None
         self.render_context = render_context
-        self.render_mode = render_mode
         self.update_viewer_sim = False
         self.robot = Robot(self.robot_base)
 
@@ -173,7 +173,6 @@ class World:
         cameras = xmltodict.parse('''<b>
             <camera name="fixednear" pos="0 -2 2" zaxis="0 -1 1"/>
             <camera name="fixedfar" pos="0 -5 5" zaxis="0 -1 1"/>
-            <camera name="fixedfurthest" pos="0 -8 8" zaxis="0 -1 1"/>
             </b>''')
         worldbody['camera'] = cameras['b']['camera']
 
@@ -238,27 +237,27 @@ class World:
             # Append new body to world, making it a list optionally
             # Add the object to the world
             worldbody['body'].append(body['body'])
-        # Add mockups to the XML dictionary
-        for name, mockup in self.mockups.items():
-            # Mockup names are suffixed with 'mockup'
-            assert mockup['name'] == name, f'Inconsistent {name} {object}'
-            assert name.replace('mockup', 'obj') in self.objects, f'missing object for {name}'
+        # Add mocaps to the XML dictionary
+        for name, mocap in self.mocaps.items():
+            # Mocap names are suffixed with 'mocap'
+            assert mocap['name'] == name, f'Inconsistent {name} {object}'
+            assert name.replace('mocap', 'obj') in self.objects, f'missing object for {name}'
             # Add the object to the world
-            mockup = mockup.copy()  # don't modify original object
-            mockup['quat'] = rot2quat(mockup['rot'])
+            mocap = mocap.copy()  # don't modify original object
+            mocap['quat'] = rot2quat(mocap['rot'])
             body = xmltodict.parse('''
-                <body name="{name}" mockup="true">
+                <body name="{name}" mocap="true">
                     <geom name="{name}" type="{type}" size="{size}" rgba="{rgba}"
                         pos="{pos}" quat="{quat}" contype="0" conaffinity="0" group="{group}"/>
                 </body>
-            '''.format(**{k: convert(v) for k, v in mockup.items()}))
+            '''.format(**{k: convert(v) for k, v in mocap.items()}))
             worldbody['body'].append(body['body'])
             # Add weld to equality list
-            mockup['body1'] = name
-            mockup['body2'] = name.replace('mockup', 'obj')
+            mocap['body1'] = name
+            mocap['body2'] = name.replace('mocap', 'obj')
             weld = xmltodict.parse('''
                 <weld name="{name}" body1="{body1}" body2="{body2}" solref=".02 1.5"/>
-            '''.format(**{k: convert(v) for k, v in mockup.items()}))
+            '''.format(**{k: convert(v) for k, v in mocap.items()}))
             equality['weld'].append(weld['weld'])
         # Add geoms to XML dictionary
         for name, geom in self.geoms.items():
@@ -314,9 +313,8 @@ class World:
         # set flag so that renderer knows to update sim
         self.update_viewer_sim = True
 
-    def render(self):
+    def render(self, mode='human'):
         ''' Render the environment to the screen '''
-        mode = self.render_mode
         if self.viewer is None:
             self.viewer = MjViewer(self.sim)
             # Turn all the geom groups on
@@ -403,7 +401,7 @@ class Robot:
                     elif sensor_type == const.SENS_JOINTVEL:
                         self.hinge_vel_names.append(name)
                     else:
-                        t = self.sim.model.sensor_type[id]
+                        t = self.sim.model.sensor_type[i]
                         raise ValueError('Unrecognized sensor type {} for joint'.format(t))
                 elif joint_type == const.JNT_BALL:
                     if sensor_type == const.SENS_BALLQUAT:
@@ -414,5 +412,5 @@ class Robot:
                     # Adding slide joints is trivially easy in code,
                     # but this removes one of the good properties about our observations.
                     # (That we are invariant to relative whole-world transforms)
-                    # If slide joints are added we should ensure this stays true!
+                    # If slide joints are added we sould ensure this stays true!
                     raise ValueError('Slide joints in robots not currently supported')

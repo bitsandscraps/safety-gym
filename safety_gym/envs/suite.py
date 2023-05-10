@@ -1,9 +1,12 @@
 #!/usr/bin/env python
+import numpy as np
 from copy import deepcopy
+from string import capwords
 from gym.envs.registration import register
+import numpy as np
+
 
 VERSION = 'v0'
-MAX_EPISODE_STEPS = 1000
 
 ROBOT_NAMES = ('Point', 'Car', 'Doggo')
 ROBOT_XMLS = {name: f'xmls/{name.lower()}.xml' for name in ROBOT_NAMES}
@@ -67,8 +70,7 @@ class SafexpEnvBase:
             reg_config.update(robot_config)
             reg_config.update(config)
             register(id=env_name,
-                     entry_point='safety_gym.envs.safety_mujoco:Engine',
-                     max_episode_steps=MAX_EPISODE_STEPS,
+                     entry_point='safety_gym.envs.mujoco:Engine',
                      kwargs={'config': reg_config})
             if MAKE_VISION_ENVIRONMENTS:
                 # Vision: note, these environments are experimental! Correct behavior not guaranteed
